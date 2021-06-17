@@ -1,3 +1,5 @@
+https://wikidocs.net/86900
+
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jun 18 02:08:01 2021
