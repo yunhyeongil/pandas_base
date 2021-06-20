@@ -1,0 +1,614 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jun 19 07:26:28 2021
+
+@author: yun
+"""
+
+import tensorflow as tf
+import numpy as np
+
+from sklearn.model_selection import train_test_split
+
+import matplotlib.ticker as ticker
+import matplotlib.pyplot as plt
+
+import time
+import re
+import os
+import io
+
+path_to_file_ko = './korean-english-park.train.ko'
+path_to_file_en = './korean-english-park.train.en'
+
+with open(path_to_file_ko, "r",encoding = "UTF-8") as f:
+  raw_ko = f.read().splitlines()
+
+print("Data Size: ", len(raw_ko))
+print("Example:")
+
+for sen in raw_ko[0:100][::20]: print(">>", sen)
+
+
+with open(path_to_file_en, "r",encoding = "UTF-8") as f:
+  raw_en = f.read().splitlines()
+
+print("Data Size: ", len(raw_en))
+print("Example:")
+
+for sen in raw_en[0:100][::20]: print(">>", sen)
+
+
+def preprocess_sentence(sentence, s_token=False, e_token=False):
+    sentence = sentence.lower().strip()
+
+    sentence = re.sub(r"([?.!,])", r" \1 ", sentence)
+    sentence = re.sub(r'[" "]+', " ", sentence)
+    sentence = re.sub(r"[^a-zA-Z?.!,]+", " ", sentence)
+
+    sentence = sentence.strip()
+
+    if s_token:
+        sentence = '<start> ' + sentence
+
+    if e_token:
+        sentence += ' <end>'
+    
+    return sentence
+
+################################ cleaning text-english ############################################
+
+eng_corpus = []
+#dec_corpus = []
+
+num_examples = 500
+
+for line in raw_en[:num_examples]: # raw[:num_examples]:
+  #eng, spa = pair.split("\t")
+  eng_corpus.append(preprocess_sentence(line, s_token=True, e_token=True))
+  #dec_corpus.append(preprocess_sentence(spa, s_token=True, e_token=True))
+
+print("English :", eng_corpus[:100][::20])
+#print("Spanish :", dec_corpus[100])
+print()
+print(len(eng_corpus))
+
+#############################################################################################
+################################ cleaning text-korean ########################################
+min_len = 999
+max_len = 0
+sum_len = 0
+
+print(raw_ko[:5])
+print(len(raw_ko))
+print(len(raw_ko[0]))
+print(len(set(raw_ko)))
+
+for sen in raw_ko:
+  length = len(sen)
+  if min_len > length: min_len = length
+  if max_len < length: max_len = length
+  sum_len += length
+
+print("문장의 최단 길이: ",min_len)
+print("문장의 최장 길이: ",max_len)
+print("문장의 평균길이:", sum_len/len(raw_ko))
+
+sentence_length = np.zeros((max_len), dtype=np.int)
+
+print(sentence_length)
+
+for sen in raw_ko:
+  sentence_length[len(sen)-1] += 1  # 길이의 빈도수 
+
+plt.bar(range(max_len), sentence_length,width=1.0)
+plt.title("Sentence legnth distroutin")
+
+print(len(raw_ko))
+
+
+
+def check_sentence_with_length(raw,length):
+   count =0
+
+   for sen in raw:
+     if len(sen) == length:
+       #print(len(sen))
+       print(sen)
+       count += 1
+       if count > 100 : return
+
+check_sentence_with_length(raw_ko,1)
+
+print(sentence_length)
+print(list(enumerate(sentence_length)))
+for idx, _sum in enumerate(sentence_length):
+  # 한문장의 길이가 1500을 초과하는 문장의 index를 추출합니다
+  if _sum > 1500:
+    print("outlier index:", idx+1)
+
+
+check_sentence_with_length(raw_ko,11)
+
+
+ 
+min_len = 999
+max_len = 0
+sum_len = 0
+
+cleaned_corpus = list(set(raw_ko))
+print("Data Size", len(cleaned_corpus))
+
+for sen in cleaned_corpus:
+  length = len(sen)
+  if min_len > length: min_len = length
+  if max_len < length: max_len = length
+  sum_len += length
+
+
+print("문장의 최단길이", min_len)
+print("문장의 최장길이:", max_len)
+print("문장의 평균길이:",sum_len//len(cleaned_corpus))
+
+sentence_length = np.zeros((max_len), dtype=np.int)
+
+check_sentence_with_length(cleaned_corpus,11)
+
+print(len(cleaned_corpus))
+
+max_len = 40
+min_len = 10
+
+filtered_corpus = [s for s in cleaned_corpus if (len(s)< max_len)& (len(s) >= min_len)]
+
+sentence_length = np.zeros((max_len), dtype=np.int)
+
+for sen in filtered_corpus:
+  sentence_length[len(sen)-1] += 1
+
+plt.bar(range(max_len), sentence_length, width=1.0)
+
+plt.title("sentence legnth distriution")
+plt.show()
+
+
+print(len(filtered_corpus))
+
+# 10000 라인만 한다###############################################################
+
+filtered_corpus = filtered_corpus[:500]
+
+print(np.shape(filtered_corpus))
+filtered_corpus[:5]
+len(filtered_corpus)
+
+
+max_len = 500
+min_len = 10
+
+filtered_corpus_eng = [s for s in eng_corpus if (len(s)< max_len)& (len(s) >= min_len)]
+
+sentence_length = np.zeros((max_len), dtype=np.int)
+
+for sen in filtered_corpus_eng:
+  sentence_length[len(sen)-1] += 1
+
+plt.bar(range(max_len), sentence_length, width=1.0)
+
+plt.title("sentence legnth distriution")
+plt.show()
+
+print(len(filtered_corpus_eng))
+
+
+
+###############################Tokenizaion############################################
+def tokenize(corpus):
+  tokenizer = tf.keras.preprocessing.text.Tokenizer(filters='')
+  tokenizer.fit_on_texts(corpus)
+
+  tensor = tokenizer.texts_to_sequences(corpus)
+  tensor = tf.keras.preprocessing.sequence.pad_sequences(tensor, padding='post')
+  return tensor, tokenizer
+
+#정제된 데이털ㄹ 공백 기반으로 토근화하여 저장하는 코드를 직접 작성해 보세요
+
+split_corpus = []
+
+
+print(filtered_corpus[:5])
+for kor in filtered_corpus:
+  split_corpus.append(kor.split())
+
+np.shape(split_corpus)
+print(split_corpus[0:5])
+
+
+
+#! git clone https://github.com/SOMJANG/Mecab-ko-for-Google-Colab
+
+#! bash install_mecab-ko_on_colab190912.sh
+
+# TOKENIZER
+########################################################################
+kor_split_tensor, kor_split_tokenizer = tokenize(split_corpus)
+########################################################################
+print(len(kor_split_tokenizer.index_word))
+
+for idx, word in enumerate(kor_split_tokenizer.word_index):
+
+  print(idx,":",word)
+
+  if idx > 10 : break
+
+print(list(enumerate(kor_split_tokenizer.word_index))[0:5])
+print(list(enumerate(kor_split_tokenizer.index_word))[0:5])
+
+print(kor_split_tensor[100])
+
+texts = kor_split_tokenizer.sequences_to_texts([kor_split_tensor[100]])
+
+print(texts)
+
+print(len(filtered_corpus_eng))
+
+eng_tensor, eng_tokenizer = tokenize(filtered_corpus_eng)
+
+print(eng_tokenizer.sequences_to_texts([eng_tensor[100]]))
+
+
+sentence = " "
+
+for w in kor_split_tensor[100]:
+   if w == 0: continue 
+   sentence += kor_split_tokenizer.index_word[w] + " "
+
+print(sentence)
+
+# 그리고 변환된 텐서를 80%의 훈련데이터와 20% 검증데이터로 분리하세요
+# 단 Tokenizer의 단어수는 자유롭게 진행하세요!
+enc_train, enc_val, dec_train, dec_val = train_test_split(kor_split_tensor,eng_tensor , test_size = 0.2)
+
+
+print(enc_train.shape)
+print(enc_val.shape)
+print(dec_train.shape)
+print(dec_val.shape)
+
+print('Korean Vocab Size :',len(kor_split_tokenizer.index_word))
+print('English Vocab Size :',len(eng_tokenizer.index_word))
+
+############################################# modeling
+class BahdanauAttention(tf.keras.layers.Layer):
+  def __init__(self, units):
+    super(BahdanauAttention, self).__init__()
+    self.w_dec = tf.keras.layers.Dense(units)
+    self.w_enc = tf.keras.layers.Dense(units)
+    self.w_com = tf.keras.layers.Dense(1)
+
+  def call(self, h_enc, h_dec):
+   # print("[H_encoder] Shape :", h_enc.shape)
+    # h_enc shape : [batch x length x units]
+    # h_dec shape : [batch x units]
+
+    h_enc = self.w_enc(h_enc) # h_enc -> w_enc -> Dense
+    #print("[W_encoder X H_encoder] Shape:", h_enc.shape)
+
+    #print("\n[H_decoder] Shape: ", h_dec.shape)
+    h_dec = tf.expand_dims(h_dec, 1)
+    h_dec = self.w_dec(h_dec)
+
+    #print("[W_decoder X H_decoder] Shape:", h_dec.shape)
+
+    score = self.w_com(tf.nn.tanh(h_dec + h_enc))
+    #print("[Score_alignment]Shape :", score.shape)
+
+    attn = tf.nn.softmax(score, axis =1)
+    #print("\n최종 weight : \n", attn.numpy())
+
+    context_vec = attn * h_enc
+    context_vec = tf.reduce_sum(context_vec, axis=1)
+    return context_vec, attn
+
+W_size = 100
+
+#print("Hidden State를 {0}차원으로 Mapping\n".format(W_size))
+
+attention = BahdanauAttention(W_size)
+
+enc_state = tf.random.uniform((1, 10, 512))
+dec_state = tf.random.uniform((1, 512))
+
+_ = attention(enc_state, dec_state) # call을 부른다
+
+class Encoder(tf.keras.Model):
+  def __init__(self, vocab_size, embedding_dim, enc_units):
+    super(Encoder, self).__init__()
+    # todo
+    self.enc_units = enc_units
+    self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim)
+    self.gru = tf.keras.layers.GRU(enc_units, return_sequences=True)
+
+  def call(self, x):
+    # todo 
+    out = self.embedding(x)
+    out = self.gru(out)
+
+    return out
+
+class Decoder(tf.keras.Model):
+  def __init__(self, vocab_size, embedding_dim, dec_units):
+    super(Decoder, self).__init__()
+    ## Todo
+    self.dec_units = dec_units
+    self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim)
+    self.gru = tf.keras.layers.GRU(dec_units, return_sequences=True, return_state=True)
+    self.fc = tf.keras.layers.Dense(vocab_size)
+    self.attention = BahdanauAttention(self.dec_units)
+
+  def call(self, x, h_dec, enc_out):
+    ## Todo
+    context_vec, attn = self.attention(enc_out, h_dec)
+    
+    out = self.embedding(x)
+    out = tf.concat([tf.expand_dims(context_vec, 1), out], axis=-1)
+
+    out, h_dec = self.gru(out)
+    #print("out.shape->",out.shape)
+    out = tf.reshape(out, (-1, out.shape[2]))
+    out = self.fc(out)
+
+    return out, h_dec, attn
+
+BATCH_SIZE = 64
+src_vocab_size = len(kor_split_tokenizer.index_word) + 1
+tgt_vocab_size = len(eng_tokenizer.index_word) + 1
+
+units = 1024
+embedding_dim = 512
+
+#[H_encoder] Shape : (1, 10, 512)
+
+# 52279 , 512, 1024
+encoder = Encoder(src_vocab_size, embedding_dim, units)
+decoder = Decoder(tgt_vocab_size, embedding_dim, units)
+
+# sample input
+sequence_len = 30
+
+sample_enc = tf.random.uniform((BATCH_SIZE, sequence_len))  # 64, 10
+sample_output = encoder(sample_enc)
+
+print('Encoder Output:', sample_output.shape)
+
+sample_state = tf.random.uniform((BATCH_SIZE, units))
+sample_logits, h_dec, attn = decoder(tf.random.uniform((BATCH_SIZE, 1)), sample_state, sample_output)
+
+print('Decoder output :', sample_logits.shape)
+print('Decoder Hidden State :', h_dec.shape)
+print('Attention :', attn.shape)
+
+optimizer = tf.keras.optimizers.Adam()
+loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+# Categorical Crossentropy()
+# [0.1, 0.2, 0.7] --> onehot encoding [0, 0, 1]
+# SparseCategoricalCrossentropy()
+# [0.1, 0.2, 0.7] ---> 정수 인덱스 2
+# True --> 모델의 출력값을 그대로 전달
+
+def loss_function(real, pred):
+  mask = tf.math.logical_not(tf.math.equal(real, 0))
+  loss = loss_object(real, pred)
+
+  mask = tf.cast(mask, dtype=loss.dtype)
+  loss *= mask
+
+  return tf.reduce_mean(loss)
+
+@tf.function
+def train_step(src, tgt, encoder, decoder, optimizer, dec_tok):
+  bsz = src.shape[0]
+  loss = 0
+
+  with tf.GradientTape() as tape:
+    enc_out = encoder(src)
+    h_dec = enc_out[:, -1]
+
+    dec_src = tf.expand_dims([dec_tok.word_index['<start>']] * bsz, 1)
+
+    for t in range(1, tgt.shape[1]):
+      pred, h_dec, _ = decoder(dec_src, h_dec, enc_out)
+
+      loss += loss_function(tgt[:, t], pred)
+      dec_src = tf.expand_dims(tgt[:,t], 1)
+
+  batch_loss = (loss/int(tgt.shape[1]))
+
+  variables = encoder.trainable_variables + decoder.trainable_variables
+  gradients = tape.gradient(loss, variables)
+  optimizer.apply_gradients(zip(gradients, variables))
+  return batch_loss
+
+
+
+
+from tqdm import tqdm
+import random
+
+epochs = 10
+
+#print(enc_train[:5])
+for epoch in range(epochs):
+  total_loss = 0
+  
+  idx_list = list(range(0, enc_train.shape[0], BATCH_SIZE))
+  #print(idx_list[:5])
+  random.shuffle(idx_list)
+  t = tqdm(idx_list)
+  #print(list(t)[:5])
+
+  for (batch, idx) in enumerate(t):
+    batch_loss = train_step(enc_train[idx:idx+BATCH_SIZE],
+                            dec_train[idx:idx+BATCH_SIZE],
+                            encoder,
+                            decoder,
+                            optimizer,
+                            eng_tokenizer)
+    total_loss += batch_loss
+
+    t.set_description_str('Epoch %2d' % (epoch+1))
+    t.set_postfix_str('Loss %.4f' % (total_loss.numpy() / (batch+1)))
+
+#print(eng_tokenizer.word_index)
+
+@tf.function
+def eval_step(src, tgt, encoder, decoder, dec_tok):
+    bsz = src.shape[0]
+    print("bsz->", bsz)
+    loss = 0
+
+    enc_out = encoder(src)
+
+    h_dec = enc_out[:, -1]
+    
+    dec_src = tf.expand_dims([dec_tok.word_index['the']] * bsz, 1)
+
+    for t in range(1, tgt.shape[1]):
+        pred, h_dec, _ = decoder(dec_src, h_dec, enc_out)
+
+        loss += loss_function(tgt[:, t], pred)
+        dec_src = tf.expand_dims(tgt[:, t], 1)
+        
+    batch_loss = (loss / int(tgt.shape[1]))
+    
+    return batch_loss
+
+
+# Training Process
+
+from tqdm import tqdm
+
+EPOCHS = 10
+
+
+for epoch in range(EPOCHS):
+    total_loss = 0
+    
+    idx_list = list(range(0, enc_train.shape[0], BATCH_SIZE))
+    random.shuffle(idx_list)
+    t = tqdm(idx_list)
+
+    for (batch, idx) in enumerate(t):
+        batch_loss = train_step(enc_train[idx:idx+BATCH_SIZE],
+                                dec_train[idx:idx+BATCH_SIZE],
+                                encoder,
+                                decoder,
+                                optimizer,
+                                eng_tokenizer)
+    
+        total_loss += batch_loss
+        
+        t.set_description_str('Epoch %2d' % (epoch + 1))
+        t.set_postfix_str('Loss %.4f' % (total_loss.numpy() / (batch + 1)))
+    
+    test_loss = 0
+    
+    idx_list = list(range(0, enc_val.shape[0], BATCH_SIZE))
+    random.shuffle(idx_list)
+    t = tqdm(idx_list)
+
+
+    for (test_batch, idx) in enumerate(t):
+        test_batch_loss = eval_step(enc_val[idx:idx+BATCH_SIZE],
+                                    dec_val[idx:idx+BATCH_SIZE],
+                                    encoder,
+                                    decoder,
+                                    eng_tokenizer)
+    
+        test_loss += test_batch_loss
+
+        t.set_description_str('Test Epoch %2d' % (epoch + 1))
+        t.set_postfix_str('Test Loss %.4f' % (test_loss.numpy() / (test_batch + 1)))
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+ 
+%config InlineBackend.figure_format = 'retina'
+ 
+import matplotlib.font_manager as fm
+
+
+
+fontpath = 'C:/Mecab/NanumFontSetup_TTF_BARUNGOTHIC/NanumBarunGothic.ttf'
+font = fm.FontProperties(fname=fontpath, size=9)
+plt.rc('font', family='NanumBarunGothic') 
+mpl.font_manager._rebuild()
+
+
+def evaluate(sentence, encoder, decoder):
+    attention = np.zeros((dec_train.shape[-1], enc_train.shape[-1]))
+    
+    sentence = preprocess_sentence(sentence)
+    inputs = kor_split_tokenizer.texts_to_sequences([sentence.split()])
+    inputs = tf.keras.preprocessing.sequence.pad_sequences(inputs,
+                                                           maxlen=enc_train.shape[-1],
+                                                           padding='post')
+
+    result = ''
+
+    enc_out = encoder(inputs)
+    
+    dec_hidden = enc_out[:, -1]
+    dec_input = tf.expand_dims([eng_tokenizer.word_index['<start>']], 0)
+
+    for t in range(dec_train.shape[-1]):
+        predictions, dec_hidden, attention_weights = decoder(dec_input,
+                                                             dec_hidden,
+                                                             enc_out)
+
+        attention_weights = tf.reshape(attention_weights, (-1, ))
+        attention[t] = attention_weights.numpy()
+
+        predicted_id = \
+        tf.argmax(tf.math.softmax(predictions, axis=-1)[0]).numpy()
+
+        result += eng_tokenizer.index_word[predicted_id] + ' '
+
+        if eng_tokenizer.index_word[predicted_id] == '<end>':
+            return result, sentence, attention
+
+        dec_input = tf.expand_dims([predicted_id], 0)
+
+    return result, sentence, attention
+
+
+def plot_attention(attention, sentence, predicted_sentence):
+    fig = plt.figure(figsize=(10,10))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.matshow(attention, cmap='viridis')
+
+    fontdict = {'fontsize': 14}
+
+    ax.set_xticklabels([''] + sentence, fontdict=fontdict, rotation=90)
+    ax.set_yticklabels([''] + predicted_sentence, fontdict=fontdict)
+
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    plt.show()
+
+
+def translate(sentence, encoder, decoder):
+    result, sentence, attention = evaluate(sentence, encoder, decoder)
+
+    print('Input: %s' % (sentence))
+    print('Predicted translation: {}'.format(result))
+    
+    attention = attention[:len(result.split()), :len(sentence.split())]
+    plot_attention(attention, sentence.split(), result.split(' '))
+
+
+translate("Can I have some coffee?", encoder, decoder)
+
+
+
